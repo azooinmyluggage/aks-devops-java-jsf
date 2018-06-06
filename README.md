@@ -5,7 +5,7 @@
 
 # JAVA web application
 
-Sample Java JSF web application that you can deploy to Azure.
+Sample Java JSF web application that you can deploy to Azure sub
 
 
 ## License:
