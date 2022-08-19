@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: 887eccb0ccc54936b06995fa941e2237.azurecr.io
+        username: ${{ secrets.acr_887eccb0ccc54936b06995fa941e2237_username }}
+        password: ${{ secrets.acr_887eccb0ccc54936b06995fa941e2237_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/" -f  "Dockerfile" -t 887eccb0ccc54936b06995fa941e2237.azurecr.io/expressazure:${{ github.sha }} --label dockerfile-path=Dockerfile
+        docker push 887eccb0ccc54936b06995fa941e2237.azurecr.io/expressazure:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_expressazure_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep expressazure9c5e | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace expressazure9c5e`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: expressazure9c5e
+        container-registry-url: 887eccb0ccc54936b06995fa941e2237.azurecr.io
+        container-registry-username: ${{ secrets.acr_887eccb0ccc54936b06995fa941e2237_username }}
+        container-registry-password: ${{ secrets.acr_887eccb0ccc54936b06995fa941e2237_password }}
+        secret-name: expressazuredockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: expressazure9c5e
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          887eccb0ccc54936b06995fa941e2237.azurecr.io/expressazure:${{ github.sha }}
+        imagepullsecrets: |
+          expressazuredockerauth
